@@ -2,3 +2,7 @@
 __pycahe__/
 *.py[cod]
 scplus_rtd
+*.egg-info
+*.egg
+eggs/
+.eggs/
