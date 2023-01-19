@@ -38,6 +38,11 @@ def _check_dimmensions(instance, attribute, value):
             raise ValueError(
                 "RNA and ATAC matrix should have the same number of cells."
                 f" RNA has {value.shape[0]} number of cells and ATAC has {instance.X_ACC.shape[1]} number of cells.")
+    if attribute.name == 'X_PCHIC':
+        if not value.shape[1] == instance.X_ACC.shape[1]:
+            raise ValueError(
+                'PCHIC, RNA and ATAC matrix should have the same number of cells.'
+                f"PCHIC has {value.shape[1]} number of cells and ATAC has {instance.X_ACC.shape[1]} number of cells.")
 
 
 @attr.s(repr=False)
@@ -57,6 +62,8 @@ class SCENICPLUS():
         A #regions x #cells data matrix
     X_EXP: sparse.spmatrix, np.ndarray, pd.DataFrame
         A #cells x #genes data matrix
+    X_PCHIC: sparse.spmatrix, np.ndarray, pd.DataFrame 
+        A #region:gene contacts x #cells data matrix 
     metadata_regions: pd.DataFrame
         A :class:`pandas.DataFrame` containing region metadata annotation of length #regions
     metadata_genes: pd.DataFrame
@@ -81,6 +88,10 @@ class SCENICPLUS():
         Returns number of genes.
     n_regions: int
         Returns number of regions.
+    n_contacts: int
+        Returns number of pchic contacts.
+    pchic_contacts: List[str]
+        Returns a list of pchic contacts in the form region:gene.
     cell_names: List[str]
         Returns cell names
     gene_names: List[str]
@@ -104,8 +115,11 @@ class SCENICPLUS():
     menr = attr.ib(type=Mapping[str, Mapping[str, Any]])
 
     # optional attributes
+    X_PCHIC = attr.ib(type = pd.DataFrame,
+                        validator = _check_dimmensions, default = None) 
     dr_cell = attr.ib(type=Mapping[str, iterable], default=None)
     dr_region = attr.ib(type=Mapping[str, iterable], default=None)
+        #could potentially also introduce a metadata_pchic attribute as well 
 
     # unstructured attributes like: region to gene, eregulons, ...
     uns = attr.ib(type=Mapping[str, Any], default={})
@@ -175,6 +189,14 @@ class SCENICPLUS():
     def region_names(self):
         return self.metadata_regions.index
 
+    @property
+    def n_contacts(self):
+        return self.X_PCHIC.shape[0]
+
+    @property
+    def pchic_contacts(self):
+        return self.X_PCHIC.index
+
     def to_df(self, layer) -> pd.DataFrame:
         """
         Generate a :class:`~pandas.DataFrame`.
@@ -201,6 +223,10 @@ class SCENICPLUS():
             X = self.X_EXP
             cols = self.gene_names
             idx = self.cell_names
+        elif layer == 'PCHIC':
+            X = self.X_PCHIC
+            idx = self.pchic_contacts
+            cols = self.cell_names
 
         if sparse.issparse(X):
             X = X.toarray()
@@ -387,7 +413,7 @@ class SCENICPLUS():
 
     def __repr__(self) -> str:
         # inspired by AnnData
-        descr = f"SCENIC+ object with n_cells x n_genes = {self.n_cells} x {self.n_genes} and n_cells x n_regions = {self.n_cells} x {self.n_regions}"
+        descr = f"SCENIC+ object with n_cells x n_genes = {self.n_cells} x {self.n_genes} and n_cells x n_regions = {self.n_cells} x {self.n_regions} "
         for attr in [
             "metadata_regions",
             "metadata_genes",
@@ -410,6 +436,7 @@ def create_SCENICPLUS_object(
         cisTopic_obj: CistopicObject,
         menr: Mapping[str, Mapping[str, Any]],
         multi_ome_mode: bool = True,
+        scPCHIC: pd.DataFrame = None,
         nr_metacells: Union[int, Mapping[str, int]] = None,
         nr_cells_per_metacells: Union[int, Mapping[str, int]] = 10,
         meta_cell_split: str = '_',
@@ -433,6 +460,8 @@ def create_SCENICPLUS_object(
         An instance of :class:`~sc.AnnData` containing gene expression data and metadata.
     cisTopic_obj: CistopicObject
         An instance of :class:`pycisTopic.cistopic_class.CistopicObject` containing chromatin accessibility data and metadata.
+    scPCHIC: pd.DataFrame
+        An instance of :class:`pd.DataFrame` containing simulated single cell PCHIC data
     menr: dict
         A dict mapping annotations to motif enrichment results
     multi_ome_mode: bool
@@ -499,6 +528,7 @@ def create_SCENICPLUS_object(
 
     GEX_gene_metadata = GEX_anndata.var.copy(deep=True)
     ACC_region_metadata = cisTopic_obj.region_data.copy(deep=True)
+    X_PCHIC_subset = scPCHIC
     if multi_ome_mode:
         # PROCESS DATA LIKE IT IS MULTI-OME
         GEX_cell_metadata = GEX_anndata.obs.copy(deep=True)
@@ -581,6 +611,7 @@ def create_SCENICPLUS_object(
         SCENICPLUS_obj = SCENICPLUS(
             X_ACC=X_ACC_subset,
             X_EXP=X_EXP_subset,
+            X_PCHIC = X_PCHIC_subset,
             metadata_regions=ACC_region_metadata_subset,
             metadata_genes=GEX_gene_metadata,
             metadata_cell=ACC_GEX_cell_metadata,
@@ -694,6 +725,7 @@ def create_SCENICPLUS_object(
         SCENICPLUS_obj = SCENICPLUS(
             X_ACC=meta_X_ACC,
             X_EXP=meta_X_EXP,
+            X_PCHIC = X_PCHIC_subset,
             metadata_regions=ACC_region_metadata_subset,
             metadata_genes=GEX_gene_metadata,
             metadata_cell=metadata_cell,
