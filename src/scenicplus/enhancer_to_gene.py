@@ -464,7 +464,7 @@ def _score_regions_to_single_gene(X, y, gene_name, region_names, regressor_type,
     :returns feature_importance for regression methods and correlation_coef for correlation methods
     """
     if regressor_type in SKLEARN_REGRESSOR_FACTORY.keys():
-        from arboreto import core as arboreto_core
+        from scenicplus import myarboreto as arboreto_core # change back to 'from arboreto import core as arboreto_core' if arboreto is ever changed. 
         # fit model
         fitted_model = arboreto_core.fit_model(regressor_type=regressor_type,
                                                regressor_kwargs=regressor_kwargs,
@@ -523,6 +523,7 @@ def _score_regions_to_genes(SCENICPLUS_obj: SCENICPLUS,
     # get expression and chromatin accessibility dataframes only once
     EXP_df = SCENICPLUS_obj.to_df(layer='EXP')
     ACC_df = SCENICPLUS_obj.to_df(layer='ACC')
+    PCHIC_df = SCENICPLUS_obj.to_df(layer = 'PCHIC')  
     if ray_n_cpu != None:
         ray.init(num_cpus=ray_n_cpu, **kwargs)
         try:
@@ -530,22 +531,29 @@ def _score_regions_to_genes(SCENICPLUS_obj: SCENICPLUS,
             for gene in tqdm(genes_to_use, total=len(genes_to_use), desc='initializing'):
                 regions_in_search_space = search_space.loc[search_space['Gene']
                                                            == gene, 'Name'].values
+                regions_in_PCHIC = regions_in_search_space + ':' + gene
+                combined_regions = np.concatenate((regions_in_search_space,regions_in_PCHIC))
                 if mask_expr_dropout:
                     expr = EXP_df[gene]
                     cell_non_zero = expr.index[expr != 0]
                     expr = expr.loc[cell_non_zero].to_numpy()
                     acc = ACC_df.loc[regions_in_search_space,
-                                     cell_non_zero].T.to_numpy()
+                                     cell_non_zero]
+                    pchic = PCHIC_df.loc[regions_in_PCHIC,
+                                    cell_non_zero]
+                    combined_acc_pchic = pd.concat([acc,pchic]).T.to_numpy()
                 else:
                     expr = EXP_df[gene].to_numpy()
-                    acc = ACC_df.loc[regions_in_search_space].T.to_numpy()
+                    acc = ACC_df.loc[regions_in_search_space]
+                    pchic = PCHIC_df.loc[regions_in_PCHIC]
+                    combined_acc_pchic = pd.concat([acc,pchic]).T.to_numpy()
                 # Check-up for genes with 1 region only, related to issue 2
-                if acc.ndim == 1:
-                    acc = acc.reshape(-1, 1)
-                jobs.append(_score_regions_to_single_gene_ray.remote(X=acc,
+                if combined_acc_pchic.ndim == 1:
+                    combined_acc_pchic = combined_acc_pchic.reshape(-1, 1)
+                jobs.append(_score_regions_to_single_gene_ray.remote(X=combined_acc_pchic,
                                                                     y=expr,
                                                                     gene_name=gene,
-                                                                    region_names=regions_in_search_space,
+                                                                    region_names= combined_regions,
                                                                     regressor_type=regressor_type,
                                                                     regressor_kwargs=regressor_kwargs))
 
@@ -570,22 +578,29 @@ def _score_regions_to_genes(SCENICPLUS_obj: SCENICPLUS,
         for gene in tqdm(genes_to_use, total=len(genes_to_use), desc=f'Running using a single core'):
             regions_in_search_space = search_space.loc[search_space['Gene']
                                                        == gene, 'Name'].values
+            regions_in_PCHIC = regions_in_search_space + ':' + gene
             if mask_expr_dropout:
-                expr = EXP_df[gene]
+                expr = EXP_df[gene].to_numpy()
                 cell_non_zero = expr.index[expr != 0]
-                expr = expr.loc[cell_non_zero].to_numpy()
+                expr = expr.loc[cell_non_zero]
                 acc = ACC_df.loc[regions_in_search_space,
-                                 cell_non_zero].T.to_numpy()
+                                 cell_non_zero]
+                pchic = PCHIC_df.loc[regions_in_PCHIC,
+                                    cell_non_zero]
+                combined_acc_pchic = pd.concat([acc,pchic]).T.to_numpy()
+                
             else:
                 expr = EXP_df[gene].to_numpy()
-                acc = ACC_df.loc[regions_in_search_space].T.to_numpy()
+                acc = ACC_df.loc[regions_in_search_space]
+                pchic = PCHIC_df.loc[regions_in_PCHIC]
+                combined_acc_pchic = pd.concat([acc,pchic]).T.to_numpy()
             # Check-up for genes with 1 region only, related to issue 2
-            if acc.ndim == 1:
-                acc = acc.reshape(-1, 1)
-            regions_to_genes[gene], _ = _score_regions_to_single_gene(X=acc,
+            if combined_acc_pchic.ndim == 1:
+                 combined_acc_pchic = combined_acc_pchic.reshape(-1, 1)
+            regions_to_genes[gene], _ = _score_regions_to_single_gene(X=combined_acc_pchic,
                                                                      y=expr,
                                                                      gene_name=gene,
-                                                                     region_names=regions_in_search_space,
+                                                                     region_names= combined_regions,
                                                                      regressor_type=regressor_type,
                                                                      regressor_kwargs=regressor_kwargs)
 
@@ -608,7 +623,7 @@ def calculate_regions_to_genes_relationships(SCENICPLUS_obj: SCENICPLUS,
     Calculates region to gene relationships using non-linear regression methods and correlation
 
     Parameters
-    ----------
+    ----------ge
     SCENICPLUS_obj: SCENICPLUS
         instance of SCENICPLUS class containing expression data and chromatin accessbility data
     search_space_key: str = 'search_space'
@@ -697,8 +712,13 @@ def calculate_regions_to_genes_relationships(SCENICPLUS_obj: SCENICPLUS,
 
     if add_distance:
         # TODO: use consistent column names
+        search_space_pchic = search_space.copy()
+        search_space['region'] = search_space_pchic['Name'] + ':' + search_space_pchic['Gene']
+        search_space_pchic = search_space_pchic[['region','Gene','Distance']]
+        search_space_pchic = search_space_pchic.rename({'Gene':'target'},axis = 1)
         search_space_rn = search_space.rename(
             {'Name': 'region', 'Gene': 'target'}, axis=1).copy()
+        search_space_rn = search_space_rn.append(search_space_pchic)
         result_df = result_df.merge(search_space_rn, on=['region', 'target'])
         #result_df['Distance'] = result_df['Distance'].map(lambda x: x[0])
     log.info('Done!')
