@@ -62,8 +62,9 @@ class SCENICPLUS():
         A #regions x #cells data matrix
     X_EXP: sparse.spmatrix, np.ndarray, pd.DataFrame
         A #cells x #genes data matrix
-    X_PCHIC: sparse.spmatrix, np.ndarray, pd.DataFrame 
+    X_PCHIC: pd.DataFrame 
         A #region:gene contacts x #cells data matrix 
+    countdata_pchic: pd.DataFrame
     metadata_regions: pd.DataFrame
         A :class:`pandas.DataFrame` containing region metadata annotation of length #regions
     metadata_genes: pd.DataFrame
@@ -117,6 +118,8 @@ class SCENICPLUS():
     # optional attributes
     X_PCHIC = attr.ib(type = pd.DataFrame,
                         validator = _check_dimmensions, default = None) 
+    count_data = attr.ib(type = pd.DataFrame, 
+                        default = None)
     dr_cell = attr.ib(type=Mapping[str, iterable], default=None)
     dr_region = attr.ib(type=Mapping[str, iterable], default=None)
         #could potentially also introduce a metadata_pchic attribute as well 
@@ -211,7 +214,7 @@ class SCENICPLUS():
             ACC to return accessibility data and EXP to return expression data.
         """
 
-        if not layer in ['ACC', 'EXP']:
+        if not layer in ['ACC', 'EXP', 'PCHIC']:
             raise ValueError(
                 f"`layer` should be either `ACC` or `EXP`, not {layer}.")
 
