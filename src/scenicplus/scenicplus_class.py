@@ -39,10 +39,11 @@ def _check_dimmensions(instance, attribute, value):
                 "RNA and ATAC matrix should have the same number of cells."
                 f" RNA has {value.shape[0]} number of cells and ATAC has {instance.X_ACC.shape[1]} number of cells.")
     if attribute.name == 'X_PCHIC':
-        if not value.shape[1] == instance.X_ACC.shape[1]:
-            raise ValueError(
-                'PCHIC, RNA and ATAC matrix should have the same number of cells.'
-                f"PCHIC has {value.shape[1]} number of cells and ATAC has {instance.X_ACC.shape[1]} number of cells.")
+        if value is not None:
+            if not value.shape[1] == instance.X_ACC.shape[1]:
+                raise ValueError(
+                    'PCHIC, RNA and ATAC matrix should have the same number of cells.'
+                    f"PCHIC has {value.shape[1]} number of cells and ATAC has {instance.X_ACC.shape[1]} number of cells.")
 
 
 @attr.s(repr=False)
@@ -64,7 +65,8 @@ class SCENICPLUS():
         A #cells x #genes data matrix
     X_PCHIC: pd.DataFrame 
         A #region:gene contacts x #cells data matrix 
-    countdata_pchic: pd.DataFrame
+    countdata_pchic: dict
+        A Dict containing PCHIC countdata for different cell types, with the keys being the celltype names. 
     metadata_regions: pd.DataFrame
         A :class:`pandas.DataFrame` containing region metadata annotation of length #regions
     metadata_genes: pd.DataFrame
@@ -117,8 +119,8 @@ class SCENICPLUS():
 
     # optional attributes
     X_PCHIC = attr.ib(type = pd.DataFrame,
-                        validator = _check_dimmensions, default = None) 
-    count_data = attr.ib(type = pd.DataFrame, 
+                    validator = _check_dimmensions, default = None) 
+    countdata_pchic = attr.ib(type = dict, 
                         default = None)
     dr_cell = attr.ib(type=Mapping[str, iterable], default=None)
     dr_region = attr.ib(type=Mapping[str, iterable], default=None)
@@ -438,6 +440,7 @@ def create_SCENICPLUS_object(
         GEX_anndata: AnnData,
         cisTopic_obj: CistopicObject,
         menr: Mapping[str, Mapping[str, Any]],
+        countdata_pchic: dict = None,
         multi_ome_mode: bool = True,
         scPCHIC: pd.DataFrame = None,
         nr_metacells: Union[int, Mapping[str, int]] = None,
@@ -463,10 +466,12 @@ def create_SCENICPLUS_object(
         An instance of :class:`~sc.AnnData` containing gene expression data and metadata.
     cisTopic_obj: CistopicObject
         An instance of :class:`pycisTopic.cistopic_class.CistopicObject` containing chromatin accessibility data and metadata.
-    scPCHIC: pd.DataFrame
-        An instance of :class:`pd.DataFrame` containing simulated single cell PCHIC data
     menr: dict
         A dict mapping annotations to motif enrichment results
+    countdata_pchic: pd.DataFrame
+        An instance of :class:`pd.DataFrame` containing the peak matrix for PCHIC, calculated by CHICAGO. 
+    scPCHIC: pd.DataFrame
+        An instance of :class:`pd.DataFrame` containing simulated single cell PCHIC data
     multi_ome_mode: bool
         A boolean specifying wether data is multi-ome (i.e. combined scATAC-seq and scRNA-seq from the same cell) or not
         default: True
@@ -615,6 +620,7 @@ def create_SCENICPLUS_object(
             X_ACC=X_ACC_subset,
             X_EXP=X_EXP_subset,
             X_PCHIC = X_PCHIC_subset,
+            countdata_pchic = countdata_pchic,
             metadata_regions=ACC_region_metadata_subset,
             metadata_genes=GEX_gene_metadata,
             metadata_cell=ACC_GEX_cell_metadata,
@@ -729,6 +735,7 @@ def create_SCENICPLUS_object(
             X_ACC=meta_X_ACC,
             X_EXP=meta_X_EXP,
             X_PCHIC = X_PCHIC_subset,
+            countdata_pchic = countdata_pchic,
             metadata_regions=ACC_region_metadata_subset,
             metadata_genes=GEX_gene_metadata,
             metadata_cell=metadata_cell,
