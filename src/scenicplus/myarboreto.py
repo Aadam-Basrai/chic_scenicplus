@@ -8,8 +8,6 @@ import logging
 
 import scipy
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor, ExtraTreesRegressor
-from sklearn.inspection import permutation_importance
-from sklearn.model_selection import train_test_split
 from dask import delayed
 from dask.dataframe import from_delayed
 from dask.dataframe.utils import make_meta
@@ -155,7 +153,7 @@ def fit_model_deviance(regressor_type,
                         seed = DEMON_SEED):
 
     '''A function identical to fit_model above, but splits the data into training and test data.'''
-
+    from sklearn.model_selection import train_test_split
     tf_matrix_training, tf_matrix_test, target_gene_expression_training, target_gene_expression_test = train_test_split(tf_matrix,
                                                                                                                         target_gene_expression,
                                                                                                                         test_size=0.1,
