@@ -175,6 +175,7 @@ def get_pchic_search_space(SCENICPLUS_obj: SCENICPLUS,
         pchic_search_space = pchic_search_space.rename(columns = {'region_name':'Name'})
     if pseudo_cell == False:
         pchic_search_space = pchic_search_space[['Name','Gene','Distance']]
+    pchic_search_space.dropna(subset='Name',inplace=True)
     pchic_search_space = pchic_search_space.drop_duplicates(subset=['Name','Gene']) 
     pchic_search_space = pchic_search_space.reset_index()
     if inplace:
@@ -191,7 +192,7 @@ def pchic_celltype_df(countdata,
 
     pchic_celltype_dict={}
     for cellname in cell_name_dictionary.keys():
-        columns = ('oeChr','oeStart','oeEnd','baitChr','baitStart','baitEnd','oeName','baitName','width',*cell_name_dictionary[cellname])
+        columns = ('chromosome','oeStart','oeEnd','baitChr','baitStart','baitEnd','oeName','width','Name','Gene',*cell_name_dictionary[cellname])
         average = peak_matrix.loc[:,(*cell_name_dictionary[cellname],)]
         average['average'] = average.mean(axis=1)
         dataframe = peak_matrix.loc[:,columns]
@@ -233,7 +234,21 @@ def calculate_scPCHIC(SCENICPLUS_obj: SCENICPLUS,
                             species,
                             assembly,
                             cell_name_dictionary,
+                            cell_mapping,
                             biomart_host = 'http://www.ensembl.org'):
+    '''
+    Parameters
+    ----------
+    SCENICPLUS_obj
+    species
+    assembly
+    cell_name_dictionary 
+        a :class: `Dict`
+        A dictionary with the keys being cellnames, and the values being the column names for replicates
+    cell_mapping
+        a :class: `Dict` 
+        A dictionary with the keys being cellnames matching the cellnames in cell_name_dictionary and the values being the names of cellname(s) in the ATAC-seq and RNA-seq data as a list like object. 
+    '''
 
     #Create logger 
     level = logging.INFO
@@ -255,6 +270,7 @@ def calculate_scPCHIC(SCENICPLUS_obj: SCENICPLUS,
                                         cell_name_dictionary)
     
     log.info('getting cell_labels')
+    cell_labels = get_cell_labels(SCENICPLUS_obj,
+                                    cell_mapping)
     
-    return cell_countdata
-    
+    return cell_countdata,cell_labels
