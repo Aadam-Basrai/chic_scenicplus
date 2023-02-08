@@ -202,18 +202,16 @@ def pchic_celltype_df(countdata,
     return pchic_celltype_dict
 
 def get_cell_labels(SCENICPLUS_obj,
-                    cellnames):
+                    cell_mapping):
     '''
     helper function to get celllabels for celltypes of interest'''
 
     metadata_cell = SCENICPLUS_obj.metadata_cell
     celllabels = {}
-    for i in range(0,len(cellnames)):
-        list = []
-        for j in range(0,len(metadata_cell.index)):
-            if str(metadata_cell['GEX_celltype'][j]) == cellnames[i]:
-                list.append(metadata_cell.index[j])
-        celllabels[cellnames[i]]=list
+    for cellname in cell_mapping.keys():
+        print (cell_mapping[cellname])
+        list = metadata_cell[metadata_cell['GEX_celltype'].isin(cell_mapping[cellname])].index
+        celllabels[cellname]=list
 
     return celllabels
 
@@ -255,6 +253,8 @@ def calculate_scPCHIC(SCENICPLUS_obj: SCENICPLUS,
     log.info('creating celltype specific countdata')
     cell_countdata = pchic_celltype_df(countdata,
                                         cell_name_dictionary)
+    
+    log.info('getting cell_labels')
     
     return cell_countdata
     
