@@ -11,6 +11,7 @@ import pyranges as pr
 import sys
 from bx.intervals.intersection import Interval, IntervalTree
 from ast import literal_eval
+from tqdm import tqdm 
 
 from .utils import extend_pyranges, extend_pyranges_with_limits, reduce_pyranges_with_limits_b
 from .utils import calculate_distance_with_limits_join, reduce_pyranges_b, calculate_distance_join
@@ -210,15 +211,19 @@ def get_cell_labels(SCENICPLUS_obj,
     metadata_cell = SCENICPLUS_obj.metadata_cell
     celllabels = {}
     for cellname in cell_mapping.keys():
-        print (cell_mapping[cellname])
         list = metadata_cell[metadata_cell['GEX_celltype'].isin(cell_mapping[cellname])].index
         celllabels[cellname]=list
 
     return celllabels
 
-def pseudo_single_cell(countdata,
+@ray.remote
+def pseudo_single_cell_ray(cellname,countdata,cell_label,frac) -> list:
+    return(pseudo_single_cell(cellname, countdata,cell_label,frac))
+
+def pseudo_single_cell(cellname,
+                        countdata,
                         cell_label,
-                        frac=0.5):
+                        frac=0.5) -> list:
     '''
     helper function to calculate a pseudo single cell matrix for a single cell type, given its bulk PcHiC.
     Carries out search space for each 
@@ -238,14 +243,16 @@ def pseudo_single_cell(countdata,
     scPCHIC = pd.concat(scPCHIC,axis=0)
     scPCHIC.set_index(keys='cell_label',inplace = True)
 
-    return scPCHIC
+    return scPCHIC,cellname
 
 def calculate_scPCHIC(SCENICPLUS_obj: SCENICPLUS,
                             species,
                             assembly,
                             cell_name_dictionary,
                             cell_mapping,
-                            biomart_host = 'http://www.ensembl.org'):
+                            biomart_host = 'http://www.ensembl.org',
+                            n_cpu = 1,
+                            frac = 0.5):
     '''
     Parameters
     ----------
@@ -288,5 +295,30 @@ def calculate_scPCHIC(SCENICPLUS_obj: SCENICPLUS,
                                     cell_mapping)
     
     log.info('creating pseudo single cells for each celltype')
+
+    ray.init(num_cpus=n_cpu)
+    try:
+        jobs = []
+
+        for cellname in cell_countdata.keys():
+            data = cell_countdata[cellname]
+            labels = cell_labels[cellname]
+            jobs.append(pseudo_single_cell_ray.remote(cellname,data,labels,frac))
+        
+        def to_iterator(obj_ids):
+            while obj_ids:
+                finished_ids,obj_ids = ray.wait(obj_ids)
+                for finished_id in finished_ids:
+                    yield ray.get(finished_id)
+        scPCHIC_dict = {}
+        for scPCHIC,cellname in tqdm(to_iterator(jobs),
+                                    total=len(jobs),
+                                    desc=f'Running using {n_cpu} cores',
+                                    smoothing=0.1):
+            scPCHIC_dict[cellname] = scPCHIC
+    except Exception as e:
+        print(e)
+    finally:
+        ray.shutdown() 
     
-    return cell_countdata,cell_labels
+    return scPCHIC_dict
