@@ -120,7 +120,7 @@ class SCENICPLUS():
     # optional attributes
     X_PCHIC = attr.ib(type = pd.DataFrame,
                     validator = _check_dimmensions, default = None) 
-    countdata_pchic = attr.ib(type = dict, 
+    countdata_pchic = attr.ib(type = pd.DataFrame, 
                         default = None)
     dr_cell = attr.ib(type=Mapping[str, iterable], default=None)
     dr_region = attr.ib(type=Mapping[str, iterable], default=None)
@@ -440,7 +440,7 @@ def create_SCENICPLUS_object(
         GEX_anndata: AnnData,
         cisTopic_obj: CistopicObject,
         menr: Mapping[str, Mapping[str, Any]],
-        countdata_pchic: dict = None,
+        countdata_pchic: pd.DataFrame = None,
         multi_ome_mode: bool = True,
         scPCHIC: pd.DataFrame = None,
         nr_metacells: Union[int, Mapping[str, int]] = None,
