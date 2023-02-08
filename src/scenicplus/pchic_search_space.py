@@ -172,6 +172,7 @@ def get_pchic_search_space(SCENICPLUS_obj: SCENICPLUS,
     if 'Name' not in pchic_search_space.columns:
         pchic_search_space = pchic_search_space.rename(columns = {'region_name':'Name'})
     pchic_search_space = pchic_search_space[['Name','Gene','Distance']]
+    pchic_search_space = pchic_search_space.drop_duplicates(subset=['Name','Gene']) 
     if inplace:
         SCENICPLUS_obj.uns[key_added] = pchic_search_space[['Name','Gene','Distance']]
     else:
@@ -351,6 +352,10 @@ def calculate_scPCHIC(SCENICPLUS_obj: SCENICPLUS,
     pchic_search_space['avg_region'] = abs((pchic_search_space['oeStart']+pchic_search_space['oeEnd'])/2)
     pchic_search_space['Distance'] = abs(pchic_search_space['Transcription_Start_Site']-abs((pchic_search_space['avg_region'])))
 
-    pchic_search_space = pchic_search_space.rename(columns = {'region_name':'Name','baitName':'Gene'})
+    if 'Gene' not in pchic_search_space.columns:
+        pchic_search_space = pchic_search_space.rename(columns = {'baitName':'Gene'})
+    if 'Name' not in pchic_search_space.columns:
+        pchic_search_space = pchic_search_space.rename(columns = {'region_name':'Name'})
+    pchic_search_space = pchic_search_space[['Name','Gene','Distance']]
 
     return(pchic_search_space)  
