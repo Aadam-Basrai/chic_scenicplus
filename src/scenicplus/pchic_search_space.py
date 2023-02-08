@@ -216,19 +216,29 @@ def get_cell_labels(SCENICPLUS_obj,
 
     return celllabels
 
-def pseudo_single_cell(search_space,
-                        celltype_peak_matrix,
-                        cell_label):
+def pseudo_single_cell(countdata,
+                        cell_label,
+                        frac=0.5):
     '''
     helper function to calculate a pseudo single cell matrix for a single cell type, given its bulk PcHiC.
     Carries out search space for each 
     '''
     random_state = 666
-    search_space['merged_name'] = search_space['Name']+':'+ search_space['Gene'] 
-    pchic_matrix = search_space[['merged_name','average']]
-    pchic_matrix.set_index(keys = 'merged_name', inplace = True)
+    countdata['merged_name'] = countdata['Name']+';'+countdata['Gene']
+    pchic = countdata[['merged_name','average']]
+    pchic.set_index(keys = 'merged_name',inplace = True)
 
-    sc_PCHIC =[]
+    scPCHIC = []
+
+    for i in range(0,len(cell_label)):
+        random_state = random_state+1
+        df_to_merge = pchic.T.sample(frac=frac,axis=1,random_state = random_state)
+        df_to_merge['cell_label'] = cell_label[i]
+        scPCHIC.append(df_to_merge)
+    scPCHIC = pd.concat(scPCHIC,axis=0)
+    scPCHIC.set_index(keys='cell_label',inplace = True)
+
+    return scPCHIC
 
 def calculate_scPCHIC(SCENICPLUS_obj: SCENICPLUS,
                             species,
@@ -256,6 +266,10 @@ def calculate_scPCHIC(SCENICPLUS_obj: SCENICPLUS,
     handlers = [logging.StreamHandler(stream=sys.stdout)]
     logging.basicConfig(level=level, format=format, handlers=handlers)
     log = logging.getLogger('calculate scPCHIC')
+    if cell_name_dictionary.keys() != cell_mapping.keys():
+        raise Exception(
+            'Please ensure cell_name_dictionary and cell_mapping have the same keys'
+        )
 
     log.info('Getting countdata in search space format')
     countdata = get_pchic_search_space(SCENICPLUS_obj,
@@ -272,5 +286,7 @@ def calculate_scPCHIC(SCENICPLUS_obj: SCENICPLUS,
     log.info('getting cell_labels')
     cell_labels = get_cell_labels(SCENICPLUS_obj,
                                     cell_mapping)
+    
+    log.info('creating pseudo single cells for each celltype')
     
     return cell_countdata,cell_labels
