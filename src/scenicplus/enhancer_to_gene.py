@@ -639,12 +639,20 @@ def _score_regions_to_genes(SCENICPLUS_obj: SCENICPLUS,
                             yield ray.get(finished_id)
                 regions_to_genes = {}
                 regions_regressors = {}
-                for importance, gene_name, regressor in tqdm(to_iterator(jobs),
-                                                  total=len(jobs),
-                                                  desc=f'Running using {ray_n_cpu} cores',
-                                                  smoothing=0.1):
-                    regions_to_genes[gene_name] = importance
-                    regions_regressors[gene_name] = regressor
+                if regressor_type in SKLEARN_REGRESSOR_FACTORY.keys():
+                    for importance, gene_name, regressor in tqdm(to_iterator(jobs),
+                                                    total=len(jobs),
+                                                    desc=f'Running using {ray_n_cpu} cores',
+                                                    smoothing=0.1):
+                        regions_to_genes[gene_name] = importance
+                        regions_regressors[gene_name] = regressor
+                else:
+                    for importance, gene_name in tqdm(to_iterator(jobs),
+                                                    total=len(jobs),
+                                                    desc=f'Running using {ray_n_cpu} cores',
+                                                    smoothing=0.1):
+                        regions_to_genes[gene_name] = importance
+
             except Exception as e:
                 print(e)
             finally:
@@ -678,13 +686,22 @@ def _score_regions_to_genes(SCENICPLUS_obj: SCENICPLUS,
                 # Check-up for genes with 1 region only, related to issue 2
                 if combined_acc_pchic.ndim == 1:
                      combined_acc_pchic = combined_acc_pchic.reshape(-1, 1)
-                regions_to_genes[gene], _ , regions_regressors[gene] = _score_regions_to_single_gene(X=combined_acc_pchic,
-                                                                         y=expr,
-                                                                         gene_name=gene,
-                                                                         region_names= combined_regions,
-                                                                         regressor_type=regressor_type,
-                                                                         regressor_kwargs=regressor_kwargs,
-                                                                         feature_names = feature_names)
+                if regressor_type in SKLEARN_REGRESSOR_FACTORY.keys():
+                    regions_to_genes[gene], _ , regions_regressors[gene] = _score_regions_to_single_gene(X=combined_acc_pchic,
+                                                                            y=expr,
+                                                                            gene_name=gene,
+                                                                            region_names= combined_regions,
+                                                                            regressor_type=regressor_type,
+                                                                            regressor_kwargs=regressor_kwargs,
+                                                                            feature_names = feature_names)
+                else:
+                    regions_to_genes[gene], _ = _score_regions_to_single_gene(X=combined_acc_pchic,
+                                                                            y=expr,
+                                                                            gene_name=gene,
+                                                                            region_names= combined_regions,
+                                                                            regressor_type=regressor_type,
+                                                                            regressor_kwargs=regressor_kwargs,
+                                                                            feature_names = feature_names)
     else:
         if ray_n_cpu != None:
             ray.init(num_cpus=ray_n_cpu, **kwargs)
@@ -724,12 +741,19 @@ def _score_regions_to_genes(SCENICPLUS_obj: SCENICPLUS,
                             yield ray.get(finished_id)
                 regions_to_genes = {}
                 regions_regressors = {}
-                for importance, gene_name, regressor in tqdm(to_iterator(jobs),
-                                              total=len(jobs),
-                                              desc=f'Running using {ray_n_cpu} cores',
-                                              smoothing=0.1):
-                    regions_to_genes[gene_name] = importance
-                    regions_regressors[gene_name] = regressor
+                if regressor_type in SKLEARN_REGRESSOR_FACTORY.keys():
+                    for importance, gene_name, regressor in tqdm(to_iterator(jobs),
+                                                    total=len(jobs),
+                                                    desc=f'Running using {ray_n_cpu} cores',
+                                                    smoothing=0.1):
+                        regions_to_genes[gene_name] = importance
+                        regions_regressors[gene_name] = regressor
+                else:
+                    for importance, gene_name in tqdm(to_iterator(jobs),
+                                                    total=len(jobs),
+                                                    desc=f'Running using {ray_n_cpu} cores',
+                                                    smoothing=0.1):
+                        regions_to_genes[gene_name] = importance
             except Exception as e:
                 print(e)
             finally:
@@ -756,13 +780,22 @@ def _score_regions_to_genes(SCENICPLUS_obj: SCENICPLUS,
             # Check-up for genes with 1 region only, related to issue 2
                 if acc.ndim == 1:
                     acc = acc.reshape(-1, 1)
-                regions_to_genes[gene], _ , regions_regressors[gene]= _score_regions_to_single_gene(X=acc,
+                if regressor_type in SKLEARN_REGRESSOR_FACTORY.keys():
+                    regions_to_genes[gene], _ , regions_regressors[gene] = _score_regions_to_single_gene(X=acc,
                                                                          y=expr,
                                                                          gene_name=gene,
                                                                          region_names=regions_in_search_space,
                                                                          regressor_type=regressor_type,
                                                                          regressor_kwargs=regressor_kwargs,
-                                                                         feature_names = feature_names)  
+                                                                         feature_names = feature_names)
+                else:
+                    regions_to_genes[gene], _ = _score_regions_to_single_gene(X=acc,
+                                                                         y=expr,
+                                                                         gene_name=gene,
+                                                                         region_names=regions_in_search_space,
+                                                                         regressor_type=regressor_type,
+                                                                         regressor_kwargs=regressor_kwargs,
+                                                                         feature_names = feature_names) 
     return regions_to_genes,regions_regressors
 
 
@@ -777,6 +810,7 @@ def calculate_regions_to_genes_relationships(SCENICPLUS_obj: SCENICPLUS,
                                              add_distance: bool = True,
                                              key_added: str = 'region_to_gene',
                                              inplace: bool = True,
+                                             include_PCHIC = False,
                                              **kwargs):
     """
     Calculates region to gene relationships using non-linear regression methods and correlation
@@ -825,13 +859,14 @@ def calculate_regions_to_genes_relationships(SCENICPLUS_obj: SCENICPLUS,
     log.info(
         f'Calculating region to gene importances, using {importance_scoring_method} method')
     start_time = time.time()
-    region_to_gene_importances = _score_regions_to_genes(SCENICPLUS_obj,
+    region_to_gene_importances, _  = _score_regions_to_genes(SCENICPLUS_obj,
                                                         search_space=search_space,
                                                         mask_expr_dropout=mask_expr_dropout,
                                                         genes=genes,
                                                         regressor_type=importance_scoring_method,
                                                         regressor_kwargs=importance_scoring_kwargs,
                                                         ray_n_cpu=ray_n_cpu,
+                                                        include_PCHIC= include_PCHIC,
                                                         **kwargs)
     log.info('Took {} seconds'.format(time.time() - start_time))
 
@@ -839,12 +874,13 @@ def calculate_regions_to_genes_relationships(SCENICPLUS_obj: SCENICPLUS,
     log.info(
         f'Calculating region to gene correlation, using {correlation_scoring_method} method')
     start_time = time.time()
-    region_to_gene_correlation = _score_regions_to_genes(SCENICPLUS_obj,
+    region_to_gene_correlation, _ = _score_regions_to_genes(SCENICPLUS_obj,
                                                         search_space=search_space,
                                                         mask_expr_dropout=mask_expr_dropout,
                                                         genes=genes,
                                                         regressor_type=correlation_scoring_method,
                                                         ray_n_cpu=ray_n_cpu,
+                                                        include_PCHIC=include_PCHIC,
                                                         **kwargs)
     log.info('Took {} seconds'.format(time.time() - start_time))
 
@@ -872,7 +908,7 @@ def calculate_regions_to_genes_relationships(SCENICPLUS_obj: SCENICPLUS,
     if add_distance:
         # TODO: use consistent column names
         search_space_pchic = search_space.copy()
-        search_space['region'] = search_space_pchic['Name'] + ':' + search_space_pchic['Gene']
+        search_space_pchic['region'] = search_space_pchic['Name'] + ':' + search_space_pchic['Gene']
         search_space_pchic = search_space_pchic[['region','Gene','Distance']]
         search_space_pchic = search_space_pchic.rename({'Gene':'target'},axis = 1)
         search_space_rn = search_space.rename(
