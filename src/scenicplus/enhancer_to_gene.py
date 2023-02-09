@@ -470,79 +470,19 @@ def _score_regions_to_single_gene(X, y, gene_name, region_names, regressor_type,
         from sklearn.metrics import mean_squared_error
         import matplotlib.pyplot as plt
         # fit model
-        tf_matrix_training, tf_matrix_test, target_gene_expression_training, target_gene_expression_test = train_test_split(X,
-                                                                                                                        y,
-                                                                                                                        test_size=0.1,
-                                                                                                                        random_state= RANDOM_SEED)
                                                                            
         fitted_model = arboreto_core.fit_model(regressor_type=regressor_type,
                                                regressor_kwargs=regressor_kwargs,
-                                               tf_matrix=tf_matrix_training,
-                                               target_gene_expression=target_gene_expression_training)
+                                               tf_matrix=X,
+                                               target_gene_expression=y)
         # get importance scores for each feature
         feature_importance = arboreto_core.to_feature_importances(regressor_type=regressor_type,
                                                                   regressor_kwargs=regressor_kwargs,
                                                                   trained_regressor=fitted_model)
         
 
-        #plot deviance for training set and test set
-        test_score = np.zeros((len(fitted_model.train_score_),),dtype=np.float64)
-        for i, y_pred in enumerate(fitted_model.staged_predict(tf_matrix_test)):
-            test_score[i] = mean_squared_error(target_gene_expression_test,y_pred)
 
-        fig = plt.figure(figsize=(18,6))
-        plt.suptitle(gene_name)
-        plt.subplot(1,3,1)
-        plt.title('Deviance')
-        plt.plot(
-            np.arange(len(fitted_model.train_score_))+1,
-            fitted_model.train_score_,
-            'b-',
-            label='Training Set Deviance'
-        )
-        plt.plot(
-            np.arange(len(fitted_model.train_score_))+1,
-            test_score, 
-            'r-',
-            label='Test Set Deviance'
-        )
-        plt.legend(loc="upper right")
-        plt.xlabel("Boosting Iterations")
-        plt.ylabel("Deviance")
-        
-        #plot the feature importance and permuation importance:
-        feature_names 
-        feature_importance_plot = fitted_model.feature_importances_
-        sorted_idx = np.argsort(feature_importance_plot)
-        if len(feature_importance_plot)<10:
-            pos=np.arange(len(feature_importance_plot))+0.5
-        else:
-            pos = np.arange(10)+0.5
-        plt.subplot(1,3,2)
-        plt.barh(pos,feature_importance_plot[sorted_idx][-10:], align='center')
-        plt.yticks(pos,np.array(feature_names)[sorted_idx][-10:])
-        plt.title('Feature Importance (MDI)')
-
-        result = permutation_importance(fitted_model,
-                                        tf_matrix_test,
-                                        target_gene_expression_test,
-                                        n_repeats=10, 
-                                        random_state = RANDOM_SEED,
-                                        n_jobs = 2)
-        sorted_idx = result.importances_mean.argsort()
-        plt.subplot(1,3,3)
-        plt.boxplot(
-            result.importances[sorted_idx][-10:].T,
-            vert=False,
-            labels = np.array(feature_names)[sorted_idx][-10:],
-        )
-        plt.title('Peruation Importance (test set)')
-        fig.tight_layout()
-        plt.show()
-        
-
-
-        return pd.Series(feature_importance, index=region_names), gene_name, fitted_model
+        return pd.Series(feature_importance, index=region_names), gene_name
 
     if regressor_type in SCIPY_CORRELATION_FACTORY.keys():
         # define correlation method
@@ -639,19 +579,11 @@ def _score_regions_to_genes(SCENICPLUS_obj: SCENICPLUS,
                             yield ray.get(finished_id)
                 regions_to_genes = {}
                 regions_regressors = {}
-                if regressor_type in SKLEARN_REGRESSOR_FACTORY.keys():
-                    for importance, gene_name, regressor in tqdm(to_iterator(jobs),
-                                                    total=len(jobs),
-                                                    desc=f'Running using {ray_n_cpu} cores',
-                                                    smoothing=0.1):
-                        regions_to_genes[gene_name] = importance
-                        regions_regressors[gene_name] = regressor
-                else:
-                    for importance, gene_name in tqdm(to_iterator(jobs),
-                                                    total=len(jobs),
-                                                    desc=f'Running using {ray_n_cpu} cores',
-                                                    smoothing=0.1):
-                        regions_to_genes[gene_name] = importance
+                for importance, gene_name in tqdm(to_iterator(jobs),
+                                                total=len(jobs),
+                                                desc=f'Running using {ray_n_cpu} cores',
+                                                smoothing=0.1):
+                    regions_to_genes[gene_name] = importance
 
             except Exception as e:
                 print(e)
@@ -686,22 +618,13 @@ def _score_regions_to_genes(SCENICPLUS_obj: SCENICPLUS,
                 # Check-up for genes with 1 region only, related to issue 2
                 if combined_acc_pchic.ndim == 1:
                      combined_acc_pchic = combined_acc_pchic.reshape(-1, 1)
-                if regressor_type in SKLEARN_REGRESSOR_FACTORY.keys():
-                    regions_to_genes[gene], _ , regions_regressors[gene] = _score_regions_to_single_gene(X=combined_acc_pchic,
-                                                                            y=expr,
-                                                                            gene_name=gene,
-                                                                            region_names= combined_regions,
-                                                                            regressor_type=regressor_type,
-                                                                            regressor_kwargs=regressor_kwargs,
-                                                                            feature_names = feature_names)
-                else:
-                    regions_to_genes[gene], _ = _score_regions_to_single_gene(X=combined_acc_pchic,
-                                                                            y=expr,
-                                                                            gene_name=gene,
-                                                                            region_names= combined_regions,
-                                                                            regressor_type=regressor_type,
-                                                                            regressor_kwargs=regressor_kwargs,
-                                                                            feature_names = feature_names)
+                regions_to_genes[gene], _ = _score_regions_to_single_gene(X=combined_acc_pchic,
+                                                                        y=expr,
+                                                                        gene_name=gene,
+                                                                        region_names= combined_regions,
+                                                                        regressor_type=regressor_type,
+                                                                        regressor_kwargs=regressor_kwargs,
+                                                                        feature_names = feature_names)
     else:
         if ray_n_cpu != None:
             ray.init(num_cpus=ray_n_cpu, **kwargs)
@@ -741,19 +664,11 @@ def _score_regions_to_genes(SCENICPLUS_obj: SCENICPLUS,
                             yield ray.get(finished_id)
                 regions_to_genes = {}
                 regions_regressors = {}
-                if regressor_type in SKLEARN_REGRESSOR_FACTORY.keys():
-                    for importance, gene_name, regressor in tqdm(to_iterator(jobs),
-                                                    total=len(jobs),
-                                                    desc=f'Running using {ray_n_cpu} cores',
-                                                    smoothing=0.1):
-                        regions_to_genes[gene_name] = importance
-                        regions_regressors[gene_name] = regressor
-                else:
-                    for importance, gene_name in tqdm(to_iterator(jobs),
-                                                    total=len(jobs),
-                                                    desc=f'Running using {ray_n_cpu} cores',
-                                                    smoothing=0.1):
-                        regions_to_genes[gene_name] = importance
+                for importance, gene_name in tqdm(to_iterator(jobs),
+                                                total=len(jobs),
+                                                desc=f'Running using {ray_n_cpu} cores',
+                                                smoothing=0.1):
+                    regions_to_genes[gene_name] = importance
             except Exception as e:
                 print(e)
             finally:
@@ -780,16 +695,7 @@ def _score_regions_to_genes(SCENICPLUS_obj: SCENICPLUS,
             # Check-up for genes with 1 region only, related to issue 2
                 if acc.ndim == 1:
                     acc = acc.reshape(-1, 1)
-                if regressor_type in SKLEARN_REGRESSOR_FACTORY.keys():
-                    regions_to_genes[gene], _ , regions_regressors[gene] = _score_regions_to_single_gene(X=acc,
-                                                                         y=expr,
-                                                                         gene_name=gene,
-                                                                         region_names=regions_in_search_space,
-                                                                         regressor_type=regressor_type,
-                                                                         regressor_kwargs=regressor_kwargs,
-                                                                         feature_names = feature_names)
-                else:
-                    regions_to_genes[gene], _ = _score_regions_to_single_gene(X=acc,
+                regions_to_genes[gene], _ = _score_regions_to_single_gene(X=acc,
                                                                          y=expr,
                                                                          gene_name=gene,
                                                                          region_names=regions_in_search_space,
