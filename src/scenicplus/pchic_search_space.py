@@ -292,6 +292,7 @@ def calculate_scPCHIC(SCENICPLUS_obj: SCENICPLUS,
                                         biomart_host = biomart_host,
                                         pseudo_cell= True,
                                         inplace=False)
+    SCENICPLUS_obj.uns['pchic_search_space'] = countdata[['Name','Gene','Distance']]
 
     log.info('creating celltype specific countdata')
     cell_countdata = pchic_celltype_df(countdata,
