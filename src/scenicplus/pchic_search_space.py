@@ -159,10 +159,16 @@ def get_pchic_search_space(SCENICPLUS_obj: SCENICPLUS,
             if str(pchic_cleaned['chromosome'][k])== str('Y'):
                 pchic_cleaned['region_name'][k]= str(intersector.find(pchic_cleaned['oeStart'][k],pchic_cleaned['oeEnd'][k]))
 
-    log.info('Exploding region names so each region name has its own row')
     pchic_search_space = pchic_cleaned
-    pchic_search_space['region_name'] = pchic_cleaned['region_name'].apply(literal_eval)
-    pchic_search_space = pchic_cleaned.explode('region_name') 
+    pchic_search_space.dropna(subset='region_name',inplace = True)
+    if pseudo_cell == False:
+        log.info('Exploding region names so each region name has its own row')
+        pchic_search_space['region_name'] = pchic_search_space['region_name'].apply(literal_eval)
+        pchic_search_space = pchic_cleaned.explode('region_name') 
+    else:
+        log.info('creating region_names from fragments')
+        pchic_search_space['region_name'] = 'chr'+pchic_search_space['chromosome']+':'+pchic_search_space['oeStart'].astype(str)+'-'+pchic_search_space['oeEnd'].astype(str)
+        
     
     log.info('Calculating distances between regions and gene')
     annot_TSS = annot[['Gene','Transcription_Start_Site']]
@@ -252,7 +258,8 @@ def calculate_scPCHIC(SCENICPLUS_obj: SCENICPLUS,
                             cell_mapping,
                             biomart_host = 'http://www.ensembl.org',
                             n_cpu = 1,
-                            frac = 0.5):
+                            frac = 0.5,
+                            inplace = False):
     '''
     Parameters
     ----------
@@ -315,10 +322,20 @@ def calculate_scPCHIC(SCENICPLUS_obj: SCENICPLUS,
                                     total=len(jobs),
                                     desc=f'Running using {n_cpu} cores',
                                     smoothing=0.1):
-            scPCHIC_dict[cellname] = scPCHIC
+            scPCHIC_dict[cellname] = scPCHIC   
     except Exception as e:
         print(e)
     finally:
         ray.shutdown() 
     
-    return scPCHIC_dict
+    result_df = pd.concat(scPCHIC_dict[cellname]for cellname in scPCHIC_dict.keys())
+
+    if inplace:
+        if not len(result_df) == len(SCENICPLUS_obj.X_ACC.T):
+            raise ValueError(
+                'Please ensure that you use all celltypes when creating scPCHIC dataframe inplace'
+            )
+        else:
+            SCENICPLUS_obj.X_PCHIC = result_df.T
+    else:
+        return result_df
