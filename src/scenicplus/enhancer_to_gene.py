@@ -521,6 +521,7 @@ def _score_regions_to_genes(SCENICPLUS_obj: SCENICPLUS,
     # Check overlaps with search space (Issue #1)
     search_space = search_space[search_space['Name'].isin(
         SCENICPLUS_obj.region_names)]
+    pchic_search_space = SCENICPLUS_obj.uns['pchic_search_space']
     if genes is None:
         genes_to_use = list(set.intersection(
             set(search_space['Gene']), set(SCENICPLUS_obj.gene_names)))
@@ -541,7 +542,8 @@ def _score_regions_to_genes(SCENICPLUS_obj: SCENICPLUS,
                 for gene in tqdm(genes_to_use, total=len(genes_to_use), desc='initializing'):
                     regions_in_search_space = search_space.loc[search_space['Gene']
                                                                == gene, 'Name'].values
-                    regions_in_PCHIC = regions_in_search_space + ':' + gene
+                    regions_in_PCHIC = pchic_search_space.loc[pchic_search_space['Gene']
+                                                                == gene, 'Name'].values
                     combined_regions = np.concatenate((regions_in_search_space,regions_in_PCHIC))
                     if mask_expr_dropout:
                         expr = EXP_df[gene]
@@ -578,7 +580,6 @@ def _score_regions_to_genes(SCENICPLUS_obj: SCENICPLUS,
                         for finished_id in finished_ids:
                             yield ray.get(finished_id)
                 regions_to_genes = {}
-                regions_regressors = {}
                 for importance, gene_name in tqdm(to_iterator(jobs),
                                                 total=len(jobs),
                                                 desc=f'Running using {ray_n_cpu} cores',
@@ -591,11 +592,11 @@ def _score_regions_to_genes(SCENICPLUS_obj: SCENICPLUS,
                 ray.shutdown()
         else:
             regions_to_genes = {}
-            regions_regressors = {}
             for gene in tqdm(genes_to_use, total=len(genes_to_use), desc=f'Running using a single core'):
                 regions_in_search_space = search_space.loc[search_space['Gene']
                                                            == gene, 'Name'].values
-                regions_in_PCHIC = regions_in_search_space + ':' + gene
+                regions_in_PCHIC = pchic_search_space.loc[pchic_search_space['Gene']
+                                                                == gene, 'Name'].values
                 combined_regions = np.concatenate((regions_in_search_space,regions_in_PCHIC))
                 if mask_expr_dropout:
                     expr = EXP_df[gene].to_numpy()
