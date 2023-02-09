@@ -145,6 +145,43 @@ def fit_model(regressor_type,
     else:
         raise ValueError('Unsupported regressor type: {0}'.format(regressor_type))
 
+def fit_model_deviance(regressor_type,
+                        regressor_kwargs,
+                        tf_matrix, 
+                        target_gene_expression,
+                        early_stop_window_length = EARLY_STOP_WINDOW_LENGTH, 
+                        seed = DEMON_SEED):
+
+    '''A function identical to fit_model above, but splits the data into training and test data.'''
+    from sklearn.model_selection import train_test_split
+    tf_matrix_training, tf_matrix_test, target_gene_expression_training, target_gene_expression_test = train_test_split(tf_matrix,
+                                                                                                                        target_gene_expression,
+                                                                                                                        test_size=0.1,
+                                                                                                                        random_state= seed)
+                                                                                                                    
+    if isinstance(target_gene_expression, scipy.sparse.spmatrix):
+        target_gene_expression = target_gene_expression.A.flatten()
+
+        assert tf_matrix.shape[0] == target_gene_expression.shape[0]
+
+
+    def do_sklearn_regression():
+        regressor = SKLEARN_REGRESSOR_FACTORY[regressor_type](random_state=seed, **regressor_kwargs)
+
+        with_early_stopping = is_oob_heuristic_supported(regressor_type, regressor_kwargs)
+
+        if with_early_stopping:
+            regressor.fit(tf_matrix_training, target_gene_expression_training, monitor=EarlyStopMonitor(early_stop_window_length))
+        else:
+            regressor.fit(tf_matrix_training, target_gene_expression_training)
+
+        return regressor
+
+    if is_sklearn_regressor(regressor_type):
+        return do_sklearn_regression()
+    else:
+        raise ValueError('Unsupported regressor type: {0}'.format(regressor_type))
+
 
 def to_feature_importances(regressor_type,
                            regressor_kwargs,
