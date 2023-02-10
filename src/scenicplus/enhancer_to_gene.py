@@ -703,7 +703,7 @@ def _score_regions_to_genes(SCENICPLUS_obj: SCENICPLUS,
                                                                          regressor_type=regressor_type,
                                                                          regressor_kwargs=regressor_kwargs,
                                                                          feature_names = feature_names) 
-    return regions_to_genes,regions_regressors
+    return regions_to_genes
 
 
 def calculate_regions_to_genes_relationships(SCENICPLUS_obj: SCENICPLUS,
@@ -766,7 +766,7 @@ def calculate_regions_to_genes_relationships(SCENICPLUS_obj: SCENICPLUS,
     log.info(
         f'Calculating region to gene importances, using {importance_scoring_method} method')
     start_time = time.time()
-    region_to_gene_importances, _  = _score_regions_to_genes(SCENICPLUS_obj,
+    region_to_gene_importances = _score_regions_to_genes(SCENICPLUS_obj,
                                                         search_space=search_space,
                                                         mask_expr_dropout=mask_expr_dropout,
                                                         genes=genes,
@@ -781,7 +781,7 @@ def calculate_regions_to_genes_relationships(SCENICPLUS_obj: SCENICPLUS,
     log.info(
         f'Calculating region to gene correlation, using {correlation_scoring_method} method')
     start_time = time.time()
-    region_to_gene_correlation, _ = _score_regions_to_genes(SCENICPLUS_obj,
+    region_to_gene_correlation = _score_regions_to_genes(SCENICPLUS_obj,
                                                         search_space=search_space,
                                                         mask_expr_dropout=mask_expr_dropout,
                                                         genes=genes,
