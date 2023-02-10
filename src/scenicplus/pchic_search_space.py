@@ -204,7 +204,6 @@ def pchic_celltype_df(countdata,
         average['average'] = average.mean(axis=1)
         dataframe = peak_matrix.loc[:,columns]
         dataframe['average'] = average['average']
-        dataframe['average'] = 500*dataframe['average']/dataframe['width']
         dataframe = dataframe.reset_index()
         pchic_celltype_dict[cellname] = dataframe 
     return pchic_celltype_dict
