@@ -801,11 +801,98 @@ def calculate_regions_to_genes_relationships(SCENICPLUS_obj: SCENICPLUS,
                                for gene in region_to_gene_importances.keys()
                                ]
                               )
-        result_df = result_df.reset_index()
-        result_df = result_df.drop('index', axis=1)
-        result_df['importance_x_rho'] = result_df['rho'] * \
+        
+        if include_PCHIC:
+            log.info('Combining region ATAC and PCHIC importances')
+            pchic_result = result_df[result_df['region'].isin(SCENICPLUS_obj.uns['pchic_search_space']['Name'])]
+            atac_result = result_df[result_df['region'].isin(SCENICPLUS_obj.uns['search_space']['Name'])]
+
+        #separating pchic_result into the ATAC consensus peaks (as done in the pchic_search_space function):
+
+            region_names = SCENICPLUS_obj.region_names
+            region_names_df = pd.DataFrame(region_names, columns = ['region_name'])
+            region_names_df[['chromosome','region']] = region_names_df['region_name'].str.split(':', n = 1, expand = True)
+
+            region_names_df[['start','end']] = region_names_df['region'].str.split('-', n=1, expand=True)
+            region_names_df['start']=region_names_df['start'].astype(int)
+            region_names_df['end']=region_names_df['end'].astype(int)
+            region_names_df=region_names_df[region_names_df['chromosome'].str.contains('chr')]
+            region_names_df['chromosome']=region_names_df['chromosome'].str.strip('chr')
+            region_names_df.insert(0,'start',region_names_df.pop('start'))
+            region_names_df.insert(1,'end',region_names_df.pop('end')) 
+        
+            pchic_result[['fragment','Gene']] = pchic_result['region'].str.split(';',n=1,expand=True)
+            pchic_result[['chromosome','number']] = pchic_result['fragment'].str.split(':',n=1,expand=True)
+            pchic_result[['start','end']] = pchic_result['number'].str.split('-',n=1,expand=True)
+            pchic_result['chromosome']=pchic_result['chromosome'].str.strip('chr')
+            pchic_result['start']=pchic_result['start'].astype(int)
+            pchic_result['end']=pchic_result['end'].astype(int)
+
+            log.info('intesecting pchic fragments with ATAC consensus peaks')
+            pchic_result['region_name']=0
+            from bx.intervals.intersection import Interval, IntervalTree
+            intersector = IntervalTree() #creates an empty dataset that will be filled by region_names for each chromosome in the for loops:
+            for i in range(1,23): 
+                intersector = IntervalTree()
+                for j in region_names_df.index: 
+                    if str(region_names_df['chromosome'][j]) == str(i):
+                        intersector.insert(region_names_df['start'][j],region_names_df['end'][j],region_names_df['region_name'][j])
+                for k in pchic_result.index: 
+                    if str(pchic_result['chromosome'][k])== str(i):
+                        pchic_result['region_name'][k]= str(intersector.find(pchic_result['start'][k],pchic_result['end'][k]))
+
+            intersector = IntervalTree()
+            for j in region_names_df.index:
+                if str(region_names_df['chromosome'][j])== str('X'):
+                    intersector.insert(region_names_df['start'][j],region_names_df['end'][j],region_names_df['region_name'][j])
+            for k in pchic_result.index: 
+                if str(pchic_result['chromosome'][k])== str('X'):
+                    pchic_result['region_name'][k]= str(intersector.find(pchic_result['start'][k],pchic_result['end'][k]))
+
+            intersector = IntervalTree()
+            for j in region_names_df.index:
+                if str(region_names_df['chromosome'][j])== str('Y'):
+                    intersector.insert(region_names_df['start'][j],region_names_df['end'][j],region_names_df['region_name'])
+            for k in pchic_result.index: 
+                if str(pchic_result['chromosome'][k])== str('Y'):
+                    pchic_result['region_name'][k]= str(intersector.find(pchic_result['start'][k],pchic_result['end'][k]))
+
+            from ast import literal_eval
+            pchic_result['region_name'] = pchic_result['region_name'].apply(literal_eval)
+            pchic_result = pchic_result.explode('region_name')
+            pchic_result.sort_values(by = 'importance',axis = 0,ascending=False)
+            pchic_result.drop_duplicates(subset = ['region_name','target'],keep='first',inplace = True) #if there are multiple scores for an ATAC consensus peak the highest score is kept
+            pchic_result.dropna(subset='region_name',inplace = True) 
+
+            #combining results with atac_results:
+            index_order = atac_result['region'].to_list()
+            pchic_result.set_index('region_name',inplace = True)
+            pchic_result.reindex(index_order)
+            atac_result.reset_index(inplace = True)
+            pchic_result.reset_index(inplace = True)
+
+            result = atac_result.copy()
+            result['importance'] = atac_result['importance'].astype(float) + pchic_result['importance'].astype(float)
+            result[['target','region','importance','rho']]
+            grouped_sums = result.groupby('target')['importance'].transform('sum')
+            result['importance'] = result['importance']/grouped_sums
+        
+            result_df = result
+            result_df = result_df.reset_index()
+            result_df = result_df.drop('index', axis=1)
+            result_df['importance_x_rho'] = result_df['rho'] * \
             result_df['importance']
-        result_df['importance_x_abs_rho'] = abs(
+            result_df['importance_x_abs_rho'] = abs(
+            result_df['rho']) * result_df['importance']
+        
+        else:
+            result_df = result_df.reset_index()
+            result_df = result_df.drop('index', axis=1)
+            grouped_sums = result_df.groupby('target')['importance'].transform('sum')
+            result_df['importance'] = result_df['importance']/grouped_sums
+            result_df['importance_x_rho'] = result_df['rho'] * \
+            result_df['importance']
+            result_df['importance_x_abs_rho'] = abs(
             result_df['rho']) * result_df['importance']
 
     except:
