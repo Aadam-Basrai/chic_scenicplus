@@ -167,7 +167,7 @@ def get_pchic_search_space(SCENICPLUS_obj: SCENICPLUS,
         pchic_search_space = pchic_cleaned.explode('region_name') 
     else:
         log.info('creating region_names from fragments')
-        pchic_search_space['region_name'] = 'chr'+pchic_search_space['chromosome']+':'+pchic_search_space['oeStart'].astype(str)+'-'+pchic_search_space['oeEnd'].astype(str)
+        pchic_search_space['region_name'] = 'chr'+pchic_search_space['chromosome']+':'+pchic_search_space['oeStart'].astype(str)+'-'+pchic_search_space['oeEnd'].astype(str) + ';' + pchic_search_space['baitName']
         
     
     log.info('Calculating distances between regions and gene')
@@ -234,9 +234,8 @@ def pseudo_single_cell(cellname,
     Carries out search space for each 
     '''
     random_state = 666
-    countdata['merged_name'] = countdata['Name']+';'+countdata['Gene']
-    pchic = countdata[['merged_name','average']]
-    pchic.set_index(keys = 'merged_name',inplace = True)
+    pchic = countdata[['Name','average']]
+    pchic.set_index(keys = 'Name',inplace = True)
 
     scPCHIC = []
 
