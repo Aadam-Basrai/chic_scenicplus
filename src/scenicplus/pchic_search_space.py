@@ -167,6 +167,8 @@ def get_pchic_search_space(SCENICPLUS_obj: SCENICPLUS,
         pchic_search_space = pchic_cleaned.explode('region_name') 
     else:
         log.info('creating region_names from fragments')
+        pchic_search_space.dropna(subset='region_name',inplace=True) #dropping any pchic contacts that don't overlap with any ATAC consensus peaks
+        pchic_search_space = pchic_search_space.drop_duplicates(subset=['region_name','baitName']) 
         pchic_search_space['region_name'] = 'chr'+pchic_search_space['chromosome']+':'+pchic_search_space['oeStart'].astype(str)+'-'+pchic_search_space['oeEnd'].astype(str) + ';' + pchic_search_space['baitName']
         
     
