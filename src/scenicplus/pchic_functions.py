@@ -154,7 +154,7 @@ def get_pchic_search_space(SCENICPLUS_obj: SCENICPLUS,
     intersector = IntervalTree()
     for j in region_names_df.index:
         if str(region_names_df['chromosome'][j])== str('Y'):
-            intersector.insert(region_names_df['start'][j],region_names_df['end'][j],region_names_df['region_name'])
+            intersector.insert(region_names_df['start'][j],region_names_df['end'][j],region_names_df['region_name'][j])
     for k in pchic_cleaned.index: 
             if str(pchic_cleaned['chromosome'][k])== str('Y'):
                 pchic_cleaned['region_name'][k]= str(intersector.find(pchic_cleaned['oeStart'][k],pchic_cleaned['oeEnd'][k]))
