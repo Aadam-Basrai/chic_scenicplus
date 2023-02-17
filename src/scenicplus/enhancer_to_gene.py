@@ -521,7 +521,6 @@ def _score_regions_to_genes(SCENICPLUS_obj: SCENICPLUS,
     # Check overlaps with search space (Issue #1)
     search_space = search_space[search_space['Name'].isin(
         SCENICPLUS_obj.region_names)]
-    pchic_search_space = SCENICPLUS_obj.uns['pchic_search_space']
     if genes is None:
         genes_to_use = list(set.intersection(
             set(search_space['Gene']), set(SCENICPLUS_obj.gene_names)))
@@ -534,6 +533,7 @@ def _score_regions_to_genes(SCENICPLUS_obj: SCENICPLUS,
     EXP_df = SCENICPLUS_obj.to_df(layer='EXP')
     ACC_df = SCENICPLUS_obj.to_df(layer='ACC')
     if include_PCHIC:
+        pchic_search_space = SCENICPLUS_obj.uns['pchic_search_space']
         PCHIC_df = SCENICPLUS_obj.to_df(layer = 'PCHIC')  
         if ray_n_cpu != None:
             ray.init(num_cpus=ray_n_cpu, **kwargs)
