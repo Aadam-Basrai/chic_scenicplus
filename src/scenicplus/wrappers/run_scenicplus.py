@@ -20,7 +20,8 @@ In case the process is killed prematurely, the function can be restared and the 
 from scenicplus.scenicplus_class import SCENICPLUS, create_SCENICPLUS_object
 from scenicplus.preprocessing.filtering import *
 from scenicplus.cistromes import *
-from scenicplus.enhancer_to_gene import get_search_space, calculate_regions_to_genes_relationships, GBM_KWARGS
+from scenicplus.pchic_functions import *
+from scenicplus.enhancer_to_gene import get_search_space, calculate_regions_to_genes_relationships, GBM_KWARGS, SGBM_KWARGS
 from scenicplus.enhancer_to_gene import export_to_UCSC_interact 
 from scenicplus.utils import format_egrns, export_eRegulons
 from scenicplus.eregulon_enrichment import *
@@ -56,6 +57,10 @@ def run_scenicplus(scplus_obj: 'SCENICPLUS',
     path_bedToBigBed: Optional[str] = None,
     n_cpu: Optional[int] = 1,
     _temp_dir: Optional[str] = '',
+    include_pchic_search_space: Optional[bool]=True,
+    include_pchic_r2g: Optional[bool]=True,
+    cell_name_dictionary: Optional[dict] = None,
+    cell_mapping: Optional[dict]=None,
     **kwargs
     ):
     """
@@ -127,24 +132,52 @@ def run_scenicplus(scplus_obj: 'SCENICPLUS',
         log.info('Merging cistromes')
         merge_cistromes(scplus_obj)
     
-    
-    if 'search_space' not in scplus_obj.uns.keys():
-        log.info('Getting search space')
-        get_search_space(scplus_obj,
+    if include_pchic_search_space == False:
+        if 'search_space' not in scplus_obj.uns.keys():
+            log.info('Getting search space')
+            get_search_space(scplus_obj,
                      biomart_host = biomart_host,
                      species = species,
                      assembly = assembly, 
                      upstream = upstream,
                      downstream = downstream)
-                 
-    if 'region_to_gene' not in scplus_obj.uns.keys():
-        log.info('Inferring region to gene relationships')
-        calculate_regions_to_genes_relationships(scplus_obj, 
+    else:
+        if 'search_space' not in scplus_obj.uns.keys():
+            log.info('Getting search space from pchic data')
+            get_pchic_search_space(scplus_obj,
+                                biomart_host= biomart_host,
+                                species = species,
+                                assembly = assembly,
+                                inplace = True,
+                                pseudo_cell = False)
+
+    if include_pchic_r2g == False:             
+        if 'region_to_gene' not in scplus_obj.uns.keys():
+            log.info('Inferring region to gene relationships')
+            calculate_regions_to_genes_relationships(scplus_obj, 
                         ray_n_cpu = n_cpu, 
                         _temp_dir = _temp_dir,
                         importance_scoring_method = 'GBM',
-                        importance_scoring_kwargs = GBM_KWARGS,
+                        importance_scoring_kwargs = SGBM_KWARGS,
                         **kwargs)
+    else:
+       if 'region_to_gene' not in scplus_obj.uns.keys():
+            log.info('Creating pseudo single cell PCHIC')
+            calculate_scPCHIC(scplus_obj,
+                            species = species,
+                            assembly = assembly,
+                            biomart_host = biomart_host,
+                            cell_name_dictionary= cell_name_dictionary,
+                            cell_mapping = cell_mapping,
+                            n_cpu = n_cpu,
+                            frac = 0.5,
+                            inplace = True)
+            log.info('Inferring region to gene relationships using ATAC & PCHIC data') 
+            calculate_regions_to_genes_relationships(scplus_obj,
+                                                ray_n_cpu = n_cpu,
+                                                importance_scoring_method = 'GBM',
+                                                importance_scoring_kwargs= SGBM_KWARGS,
+                                                **kwargs)
                         
     if 'TF2G_adj' not in scplus_obj.uns.keys():
         log.info('Inferring TF to gene relationships')
