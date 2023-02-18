@@ -330,6 +330,9 @@ def calculate_scPCHIC(SCENICPLUS_obj: SCENICPLUS,
         ray.shutdown() 
     
     result_df = pd.concat(scPCHIC_dict[cellname]for cellname in scPCHIC_dict.keys())
+    result_df = result_df.fillna(0)
+    index_order = SCENICPLUS_obj.metadata_cell.index
+    result_df = result_df.reindex(index_order) #ensure that the celllabels are in the same order as the accessibility and expression dataframes.
 
     if inplace:
         if not len(result_df) == len(SCENICPLUS_obj.X_ACC.T):
