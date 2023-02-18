@@ -852,7 +852,7 @@ def calculate_regions_to_genes_relationships(SCENICPLUS_obj: SCENICPLUS,
             intersector = IntervalTree()
             for j in region_names_df.index:
                 if str(region_names_df['chromosome'][j])== str('Y'):
-                    intersector.insert(region_names_df['start'][j],region_names_df['end'][j],region_names_df['region_name'])
+                    intersector.insert(region_names_df['start'][j],region_names_df['end'][j],region_names_df['region_name'][j])
             for k in pchic_result.index: 
                 if str(pchic_result['chromosome'][k])== str('Y'):
                     pchic_result['region_name'][k]= str(intersector.find(pchic_result['start'][k],pchic_result['end'][k]))
@@ -867,7 +867,7 @@ def calculate_regions_to_genes_relationships(SCENICPLUS_obj: SCENICPLUS,
             #combining results with atac_results:
             index_order = atac_result['region'].to_list()
             pchic_result.set_index('region_name',inplace = True)
-            pchic_result.reindex(index_order)
+            pchic_result = pchic_result.reindex(index_order)
             atac_result.reset_index(inplace = True)
             pchic_result.reset_index(inplace = True)
 
