@@ -159,14 +159,14 @@ def score_eRegulons(scplus_obj: SCENICPLUS,
     if inplace:
         scplus_obj.uns[key_added][key] = signature_enrichment(ranking,
                                                             scplus_obj.uns[eRegulon_signatures_key][key],
-                                                            enrichment_type=enrichment_type,
+                                                            enrichment_type='gene',
                                                             auc_threshold=auc_threshold,
                                                             normalize=normalize,
                                                             n_cpu=n_cpu)
     else:
         return signature_enrichment(ranking,
                                     scplus_obj.uns[eRegulon_signatures_key][key],
-                                    enrichment_type=enrichment_type,
+                                    enrichment_type='gene',
                                     auc_threshold=auc_threshold,
                                     normalize=normalize,
                                     n_cpu=n_cpu)
